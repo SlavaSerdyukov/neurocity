@@ -38,6 +38,7 @@ neurocity/
 │       ├── js/dashboard.js
 │       └── vendor/
 ├── tests/
+├── .env.example
 ├── pyproject.toml
 └── README.md
 ```
@@ -76,9 +77,22 @@ The random source is derived from `seed + tick + system salt`, so save/load repl
 - `POST /load`
 - `WS /ws/simulation`
 
+## Configuration And Secrets
+
+Runtime configuration is loaded from `.env` with the `NEUROCITY_` prefix. The local `.env` file is ignored by git; commit `.env.example` only.
+
+Use `.env` or deployment environment variables for values that may become sensitive, especially database URLs with credentials, remote Ollama endpoints, future API tokens, and production feature flags.
+
+Key settings:
+
+- `NEUROCITY_DATABASE_URL` controls the SQLAlchemy database connection.
+- `NEUROCITY_DEFAULT_SEED`, `NEUROCITY_DEFAULT_POPULATION`, and `NEUROCITY_DEFAULT_DISTRICTS` control the initial world.
+- `NEUROCITY_ENABLE_LLM`, `NEUROCITY_OLLAMA_URL`, and `NEUROCITY_OLLAMA_MODEL` control the optional local LLM layer.
+
 ## Startup
 
 ```bash
+cp .env.example .env
 uv sync --extra dev
 uv run uvicorn app.main:app --reload
 ```
@@ -95,7 +109,7 @@ The test suite covers deterministic ticks, save/load replay, economy and citizen
 
 ## Optional Ollama Layer
 
-The core simulator never depends on an LLM. `app/simulation/ai/llm_events.py` provides a best-effort local Ollama helper for future newspaper or citizen conversation flavor using `NEUROCITY_ENABLE_LLM=true`, `NEUROCITY_OLLAMA_URL`, and `NEUROCITY_OLLAMA_MODEL`.
+The core simulator never depends on an LLM. `app/simulation/ai/llm_events.py` provides a best-effort local Ollama helper for future newspaper or citizen conversation flavor. Enable it in `.env` with `NEUROCITY_ENABLE_LLM=true`, `NEUROCITY_OLLAMA_URL`, and `NEUROCITY_OLLAMA_MODEL`.
 
 ## 👤 Author
 

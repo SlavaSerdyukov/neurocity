@@ -51,3 +51,15 @@ def test_save_load_and_websocket_initial_snapshot() -> None:
             websocket.send_json({"action": "tick", "steps": 1})
             updated = websocket.receive_json()
             assert updated["tick"] == 5
+
+
+def test_load_empty_named_slot_is_noop_snapshot() -> None:
+    with TestClient(app) as client:
+        missing = client.post("/load", json={"name": "pytest-missing-save-slot"})
+        assert missing.status_code == 200
+        payload = missing.json()
+        assert payload["load_status"]["loaded"] is False
+        assert payload["tick"] == 0
+
+        missing_id = client.post("/load", json={"id": -1})
+        assert missing_id.status_code == 404

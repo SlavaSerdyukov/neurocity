@@ -128,7 +128,21 @@ def load(
     else:
         record = latest_save(session, payload.name)
     if record is None:
+        if payload.id is None:
+            snapshot = engine.snapshot()
+            snapshot["load_status"] = {
+                "loaded": False,
+                "message": "No matching simulation save found; keeping the current city state.",
+            }
+            return snapshot
         raise HTTPException(status_code=404, detail="No matching simulation save found")
     state = WorldState.from_dict(json.loads(record.payload_json))
-    return engine.load_state(state)
-
+    snapshot = engine.load_state(state)
+    snapshot["load_status"] = {
+        "loaded": True,
+        "id": record.id,
+        "name": record.name,
+        "tick": record.tick,
+        "created_at": record.created_at.isoformat(),
+    }
+    return snapshot
