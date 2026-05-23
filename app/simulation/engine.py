@@ -5,6 +5,7 @@ from collections.abc import Awaitable, Callable
 
 from app.simulation.ai.narrative_generator import deterministic_newspaper
 from app.simulation.event_system import EventSystem
+from app.simulation.interventions import apply_intervention, set_government_parameter
 from app.simulation.procedural import create_world
 from app.simulation.scheduler import run_systems
 from app.simulation.tick_manager import SimulationSpeed, speed_delay
@@ -59,6 +60,25 @@ class SimulationEngine:
         self.state = state
         self.speed = SimulationSpeed.PAUSED
         return self.snapshot()
+
+    async def apply_intervention_async(
+        self,
+        kind: str,
+        severity: float = 0.55,
+        target_district_id: int | None = None,
+    ) -> dict:
+        async with self._lock:
+            apply_intervention(self.state, kind, severity, target_district_id)
+            snapshot = self.snapshot()
+        await self._broadcast(snapshot)
+        return snapshot
+
+    async def set_government_parameter_async(self, parameter: str, value: float) -> dict:
+        async with self._lock:
+            set_government_parameter(self.state, parameter, value)
+            snapshot = self.snapshot()
+        await self._broadcast(snapshot)
+        return snapshot
 
     def step(self, steps: int = 1) -> dict:
         for _ in range(max(1, steps)):
@@ -123,4 +143,3 @@ class SimulationEngine:
             }
         )
         self.state.history = self.state.history[-2000:]
-

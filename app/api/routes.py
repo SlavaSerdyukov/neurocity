@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 from sqlmodel import Session, select
 
 from app.database import SimulationSave, get_session, latest_save
+from app.simulation.interventions import available_interventions
 from app.simulation.engine import SimulationEngine
 from app.simulation.world_state import WorldState
 
@@ -31,6 +32,17 @@ class SaveRequest(BaseModel):
 class LoadRequest(BaseModel):
     id: int | None = None
     name: str | None = None
+
+
+class InterventionRequest(BaseModel):
+    kind: str
+    severity: float = Field(0.55, ge=0.05, le=1.0)
+    target_district_id: int | None = None
+
+
+class PolicyRequest(BaseModel):
+    parameter: str
+    value: float = Field(..., ge=0.0, le=1.0)
 
 
 def get_engine(request: Request) -> SimulationEngine:
@@ -68,6 +80,11 @@ def events(engine: Annotated[SimulationEngine, Depends(get_engine)], limit: int 
     return [event.to_dict() for event in engine.state.events[-min(max(limit, 1), 300) :]]
 
 
+@router.get("/interventions")
+def interventions() -> list[dict]:
+    return available_interventions()
+
+
 @router.post("/simulation/start")
 async def start(engine: Annotated[SimulationEngine, Depends(get_engine)], payload: SpeedRequest | None = None) -> dict:
     await engine.start(payload.speed if payload else 1)
@@ -97,6 +114,22 @@ async def speed(engine: Annotated[SimulationEngine, Depends(get_engine)], payloa
 @router.post("/simulation/tick")
 async def tick(engine: Annotated[SimulationEngine, Depends(get_engine)], steps: int = 1) -> dict:
     return await engine.step_async(min(max(steps, 1), 250))
+
+
+@router.post("/intervention")
+async def intervention(engine: Annotated[SimulationEngine, Depends(get_engine)], payload: InterventionRequest) -> dict:
+    try:
+        return await engine.apply_intervention_async(payload.kind, payload.severity, payload.target_district_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/policy")
+async def policy(engine: Annotated[SimulationEngine, Depends(get_engine)], payload: PolicyRequest) -> dict:
+    try:
+        return await engine.set_government_parameter_async(payload.parameter, payload.value)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.post("/save")

@@ -68,11 +68,14 @@ The random source is derived from `seed + tick + system salt`, so save/load repl
 - `GET /citizens`
 - `GET /economy`
 - `GET /events`
+- `GET /interventions`
 - `POST /simulation/start`
 - `POST /simulation/pause`
 - `POST /simulation/reset`
 - `POST /simulation/speed`
 - `POST /simulation/tick`
+- `POST /intervention`
+- `POST /policy`
 - `POST /save`
 - `POST /load`
 - `WS /ws/simulation`

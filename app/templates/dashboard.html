@@ -61,6 +61,38 @@
             <div><dt>Pollution</dt><dd id="kpi-pollution">0%</dd></div>
           </dl>
         </section>
+        <section class="intervention-panel">
+          <h2>Observer Console</h2>
+          <div class="control-stack">
+            <label class="range-control" for="intervention-severity">
+              <span>Intensity</span>
+              <strong id="intervention-severity-value">55%</strong>
+              <input id="intervention-severity" type="range" min="5" max="100" step="5" value="55" />
+            </label>
+            <label class="range-control" for="policy-corruption">
+              <span>Corruption</span>
+              <strong id="policy-corruption-value">0%</strong>
+              <input id="policy-corruption" type="range" min="0" max="100" step="1" value="0" />
+            </label>
+            <label class="range-control" for="policy-crime">
+              <span>Crime</span>
+              <strong id="policy-crime-value">0%</strong>
+              <input id="policy-crime" type="range" min="0" max="100" step="1" value="0" />
+            </label>
+          </div>
+          <div class="intervention-grid" aria-label="Simulation interventions">
+            <button data-intervention="corruption_surge" title="Trigger a corruption surge">Corruption</button>
+            <button data-intervention="dictator" title="Install emergency rule">Dictator</button>
+            <button data-intervention="revolution" title="Trigger revolutionary instability">Revolution</button>
+            <button data-intervention="war" title="Trigger a regional war">War</button>
+            <button data-intervention="climate_disaster" title="Trigger a climate disaster">Climate</button>
+            <button data-intervention="transit_strike" title="Trigger a transit strike">Transit</button>
+            <button data-intervention="meme_panic" title="Trigger a meme panic">Meme Panic</button>
+            <button data-intervention="housing_boom" title="Launch emergency housing">Housing Boom</button>
+            <button data-intervention="anti_corruption_drive" title="Launch an anti-corruption drive">Clean State</button>
+          </div>
+          <div id="active-interventions" class="active-interventions" aria-live="polite"></div>
+        </section>
       </aside>
 
       <main class="map-zone">

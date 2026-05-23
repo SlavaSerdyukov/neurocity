@@ -33,6 +33,16 @@ async def simulation_socket(websocket: WebSocket) -> None:
                 await engine.step_async(int(message.get("steps", 1)))
             elif action == "reset":
                 await engine.reset(seed=message.get("seed"), population=message.get("population"))
+            elif action == "intervention":
+                await engine.apply_intervention_async(
+                    str(message.get("kind", "")),
+                    float(message.get("severity", 0.55)),
+                    message.get("target_district_id"),
+                )
+            elif action == "policy":
+                await engine.set_government_parameter_async(
+                    str(message.get("parameter", "")),
+                    float(message.get("value", 0.0)),
+                )
     except WebSocketDisconnect:
         engine.unsubscribe(sender)
-

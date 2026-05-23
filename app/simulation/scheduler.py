@@ -14,6 +14,7 @@ from app.simulation.systems import (
     update_social_network,
     update_transportation,
 )
+from app.simulation.interventions import update_interventions
 from app.simulation.world_state import WorldState
 
 
@@ -31,10 +32,10 @@ SYSTEM_PIPELINE: tuple[SystemFn, ...] = (
     update_culture,
     update_economy,
     update_politics,
+    update_interventions,
 )
 
 
 def run_systems(state: WorldState) -> None:
     for system in SYSTEM_PIPELINE:
         system(state)
-

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import numpy as np
 
+from app.simulation.systems.probability import normalized_probabilities
 from app.simulation.world_state import WorldState, clamp, clamp_array
 
 
@@ -39,8 +40,7 @@ def update_housing(state: WorldState) -> None:
         affordability = (1.1 - pressure) * (0.35 + district_wealth) + np.array(
             [district.transit_access for district in state.districts], dtype=np.float32
         ) * 0.12
-        affordability = np.maximum(0.01, affordability)
-        affordability = affordability / affordability.sum()
+        affordability = normalized_probabilities(np.maximum(0.01, affordability))
         citizens.home_district[movers] = rng.choice(district_count, int(movers.sum()), p=affordability)
         citizens.memory_stress[movers] = clamp_array(citizens.memory_stress[movers] + 0.08)
 

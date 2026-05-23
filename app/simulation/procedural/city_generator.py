@@ -80,6 +80,7 @@ def initial_metrics() -> dict[str, float]:
         "pollution": 0.0,
         "protest_intensity": 0.0,
         "tech_level": 0.0,
+        "active_interventions": 0.0,
     }
 
 

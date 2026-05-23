@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -31,6 +32,7 @@ def test_dashboard_and_core_api_endpoints() -> None:
         assert client.get("/citizens?limit=10").status_code == 200
         assert client.get("/economy").status_code == 200
         assert client.get("/events").status_code == 200
+        assert client.get("/interventions").status_code == 200
 
 
 def test_save_load_and_websocket_initial_snapshot() -> None:
@@ -51,6 +53,9 @@ def test_save_load_and_websocket_initial_snapshot() -> None:
             websocket.send_json({"action": "tick", "steps": 1})
             updated = websocket.receive_json()
             assert updated["tick"] == 5
+            websocket.send_json({"action": "intervention", "kind": "meme_panic", "severity": 0.6})
+            intervened = websocket.receive_json()
+            assert intervened["interventions"][-1]["name"] == "Meme Panic"
 
 
 def test_load_empty_named_slot_is_noop_snapshot() -> None:
@@ -63,3 +68,29 @@ def test_load_empty_named_slot_is_noop_snapshot() -> None:
 
         missing_id = client.post("/load", json={"id": -1})
         assert missing_id.status_code == 404
+
+
+def test_intervention_and_policy_api_update_city_state() -> None:
+    with TestClient(app) as client:
+        catalog = client.get("/interventions")
+        assert catalog.status_code == 200
+        kinds = {item["kind"] for item in catalog.json()}
+        assert {"dictator", "revolution", "war"}.issubset(kinds)
+
+        intervention = client.post("/intervention", json={"kind": "dictator", "severity": 0.7})
+        assert intervention.status_code == 200
+        payload = intervention.json()
+        assert payload["government"]["ruling_coalition"] == "Emergency Directorate"
+        assert payload["interventions"][0]["name"] == "Emergency Directorate"
+        assert payload["events"][-1]["category"] == "politics"
+
+        policy = client.post("/policy", json={"parameter": "corruption", "value": 0.82})
+        assert policy.status_code == 200
+        assert policy.json()["government"]["corruption"] == 0.82
+
+        crime = client.post("/policy", json={"parameter": "crime", "value": 0.74})
+        assert crime.status_code == 200
+        assert crime.json()["metrics"]["crime"] == pytest.approx(0.74)
+
+        invalid = client.post("/intervention", json={"kind": "moonfall", "severity": 0.5})
+        assert invalid.status_code == 400

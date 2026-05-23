@@ -9,6 +9,8 @@ const state = {
   pixiRenderVersion: 0,
   pendingSnapshot: null,
   renderScheduled: false,
+  policyEditing: new Set(),
+  interventionSeverity: 0.55,
 };
 
 const fmt = {
@@ -27,11 +29,36 @@ function command(message) {
     state.socket.send(JSON.stringify(message));
     return;
   }
-  if (message.action === "tick") {
-    fetch(`/simulation/tick?steps=${message.steps || 1}`, { method: "POST" })
-      .then((response) => response.json())
-      .then(scheduleDashboardUpdate);
-  }
+  const jsonHeaders = { "Content-Type": "application/json" };
+  const fallback = {
+    start: () => fetch("/simulation/start", { method: "POST", headers: jsonHeaders, body: JSON.stringify({ speed: 1 }) }),
+    pause: () => fetch("/simulation/pause", { method: "POST" }),
+    reset: () => fetch("/simulation/reset", { method: "POST", headers: jsonHeaders, body: JSON.stringify({}) }),
+    speed: () => fetch("/simulation/speed", { method: "POST", headers: jsonHeaders, body: JSON.stringify({ speed: message.speed }) }),
+    tick: () => fetch(`/simulation/tick?steps=${message.steps || 1}`, { method: "POST" }),
+    intervention: () =>
+      fetch("/intervention", {
+        method: "POST",
+        headers: jsonHeaders,
+        body: JSON.stringify({
+          kind: message.kind,
+          severity: message.severity,
+          target_district_id: message.target_district_id ?? null,
+        }),
+      }),
+    policy: () =>
+      fetch("/policy", {
+        method: "POST",
+        headers: jsonHeaders,
+        body: JSON.stringify({ parameter: message.parameter, value: message.value }),
+      }),
+  };
+  if (!fallback[message.action]) return;
+  fallback[message.action]()
+    .then((response) => (response.ok ? response.json() : null))
+    .then((snapshot) => {
+      if (snapshot) scheduleDashboardUpdate(snapshot);
+    });
 }
 
 function scheduleDashboardUpdate(snapshot) {
@@ -83,6 +110,26 @@ function wireControls() {
   document.querySelectorAll("[data-speed]").forEach((button) => {
     button.addEventListener("click", () => command({ action: "speed", speed: Number(button.dataset.speed) }));
   });
+
+  const severityInput = byId("intervention-severity");
+  severityInput.addEventListener("input", () => {
+    state.interventionSeverity = Number(severityInput.value) / 100;
+    byId("intervention-severity-value").textContent = fmt.pct(state.interventionSeverity);
+  });
+
+  document.querySelectorAll("[data-intervention]").forEach((button) => {
+    button.addEventListener("click", () => {
+      command({
+        action: "intervention",
+        kind: button.dataset.intervention,
+        severity: state.interventionSeverity,
+        target_district_id: state.selectedDistrictId,
+      });
+    });
+  });
+
+  wirePolicySlider("corruption");
+  wirePolicySlider("crime");
 }
 
 function connectSocket() {
@@ -123,6 +170,7 @@ function updateDashboard(snapshot) {
 
   renderMap(snapshot);
   renderInspector(snapshot);
+  renderInterventions(snapshot);
   renderEvents(snapshot.events || []);
   renderNewspaper(snapshot.newspaper || []);
   renderCharts(snapshot.history || []);
@@ -261,12 +309,53 @@ function renderInspector(snapshot) {
   byId("district-jobs").textContent = fmt.pct(district.business_activity);
 }
 
+function renderInterventions(snapshot) {
+  const government = snapshot.government || {};
+  syncPolicySlider("corruption", government.corruption || 0);
+  syncPolicySlider("crime", (snapshot.metrics || {}).crime || 0);
+
+  const list = byId("active-interventions");
+  list.innerHTML = "";
+  const interventions = snapshot.interventions || [];
+  interventions.slice(-6).forEach((intervention) => {
+    const chip = document.createElement("span");
+    chip.className = "intervention-chip";
+    const remaining = Math.max(0, (intervention.expires_tick || 0) - (snapshot.tick || 0));
+    chip.textContent = `${intervention.name} ${fmt.pct(intervention.severity)} · ${remaining}d`;
+    list.appendChild(chip);
+  });
+}
+
+function wirePolicySlider(parameter) {
+  const input = byId(`policy-${parameter}`);
+  if (!input) return;
+  input.addEventListener("pointerdown", () => {
+    state.policyEditing.add(parameter);
+  });
+  input.addEventListener("input", () => {
+    byId(`policy-${parameter}-value`).textContent = `${input.value}%`;
+  });
+  input.addEventListener("change", () => {
+    state.policyEditing.delete(parameter);
+    command({ action: "policy", parameter, value: Number(input.value) / 100 });
+  });
+}
+
+function syncPolicySlider(parameter, value) {
+  const input = byId(`policy-${parameter}`);
+  if (!input || state.policyEditing.has(parameter)) return;
+  const percent = Math.round((value || 0) * 100);
+  input.value = percent;
+  byId(`policy-${parameter}-value`).textContent = `${percent}%`;
+}
+
 function renderEvents(events) {
   const list = byId("event-list");
   const wasReadingOlderEvents = list.scrollTop > 8;
   const previousScrollTop = list.scrollTop;
   list.innerHTML = "";
   events
+    .slice()
     .reverse()
     .forEach((event) => {
       const row = document.createElement("div");

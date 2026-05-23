@@ -162,6 +162,70 @@ h2 {
   padding-top: 0;
 }
 
+.control-stack {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.range-control {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px 10px;
+  align-items: center;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.range-control strong {
+  color: var(--text);
+  font-size: 12px;
+}
+
+.range-control input {
+  grid-column: 1 / -1;
+  width: 100%;
+  accent-color: var(--cyan);
+}
+
+.intervention-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px;
+  margin-top: 10px;
+}
+
+.intervention-grid button {
+  width: 100%;
+  min-width: 0;
+  padding: 0 7px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.active-interventions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-height: 24px;
+  margin-top: 10px;
+}
+
+.intervention-chip {
+  border: 1px solid rgba(79, 227, 255, 0.25);
+  border-radius: 999px;
+  padding: 3px 7px;
+  color: var(--cyan);
+  background: rgba(79, 227, 255, 0.07);
+  font-size: 10px;
+  font-weight: 800;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 dl {
   display: grid;
   gap: 8px;
@@ -409,7 +473,10 @@ dd {
 
 .event-row.crime,
 .event-row.energy,
-.event-row.politics {
+.event-row.politics,
+.event-row.policy,
+.event-row.climate,
+.event-row.conflict {
   border-color: var(--red);
 }
 

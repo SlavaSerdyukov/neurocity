@@ -1,9 +1,17 @@
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
+import math
 from typing import Any
 
 import numpy as np
+
+
+MAX_COMPANY_EMPLOYEES = 500_000
+MAX_COMPANY_OPEN_ROLES = 500_000
+MAX_COMPANY_WAGE = 1_000_000.0
+MAX_COMPANY_CAPITAL = 10_000_000_000.0
+MAX_CITIZEN_WEALTH = 100_000_000.0
 
 
 def clamp(value: float, low: float = 0.0, high: float = 1.0) -> float:
@@ -12,6 +20,39 @@ def clamp(value: float, low: float = 0.0, high: float = 1.0) -> float:
 
 def clamp_array(values: np.ndarray, low: float = 0.0, high: float = 1.0) -> np.ndarray:
     return np.clip(values, low, high)
+
+
+def finite_float(
+    value: Any,
+    default: float = 0.0,
+    low: float | None = None,
+    high: float | None = None,
+) -> float:
+    try:
+        result = float(value)
+    except (TypeError, ValueError, OverflowError):
+        result = default
+    if not math.isfinite(result):
+        result = default
+    if low is not None:
+        result = max(low, result)
+    if high is not None:
+        result = min(high, result)
+    return float(result)
+
+
+def finite_int(
+    value: Any,
+    default: int = 0,
+    low: int | None = None,
+    high: int | None = None,
+) -> int:
+    result = int(finite_float(value, float(default), None, None))
+    if low is not None:
+        result = max(low, result)
+    if high is not None:
+        result = min(high, result)
+    return result
 
 
 @dataclass(slots=True)
@@ -89,9 +130,23 @@ class Company:
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
+    def sanitize(self, district_count: int | None = None) -> None:
+        max_district = None if district_count is None else max(0, district_count - 1)
+        self.id = finite_int(self.id, low=0)
+        self.district_id = finite_int(self.district_id, low=0, high=max_district)
+        self.employees = finite_int(self.employees, default=1, low=1, high=MAX_COMPANY_EMPLOYEES)
+        self.open_roles = finite_int(self.open_roles, default=0, low=0, high=MAX_COMPANY_OPEN_ROLES)
+        self.wage = finite_float(self.wage, default=60_000.0, low=18_000.0, high=MAX_COMPANY_WAGE)
+        self.capital = finite_float(self.capital, default=0.0, low=0.0, high=MAX_COMPANY_CAPITAL)
+        self.productivity = finite_float(self.productivity, default=0.5, low=0.03, high=1.6)
+        self.lobbying = finite_float(self.lobbying, default=0.0, low=0.0, high=1.0)
+        self.failure_risk = finite_float(self.failure_risk, default=0.2, low=0.0, high=1.0)
+
     @classmethod
     def from_dict(cls, payload: dict[str, Any]) -> "Company":
-        return cls(**payload)
+        company = cls(**payload)
+        company.sanitize()
+        return company
 
 
 @dataclass(slots=True)
@@ -147,6 +202,24 @@ class CityEvent:
 
     @classmethod
     def from_dict(cls, payload: dict[str, Any]) -> "CityEvent":
+        return cls(**payload)
+
+
+@dataclass(slots=True)
+class ActiveIntervention:
+    id: str
+    name: str
+    category: str
+    severity: float
+    started_tick: int
+    expires_tick: int
+    target_district_id: int | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, payload: dict[str, Any]) -> "ActiveIntervention":
         return cls(**payload)
 
 
@@ -277,6 +350,7 @@ class WorldState:
     metrics: dict[str, float]
     history: list[dict[str, float]]
     newspaper: list[str]
+    interventions: list[ActiveIntervention] = field(default_factory=list)
 
     def rng(self, salt: int = 0) -> np.random.Generator:
         return np.random.default_rng(self.seed + self.tick * 100_003 + salt * 9_973)
@@ -297,11 +371,12 @@ class WorldState:
             "metrics": self.metrics,
             "history": self.history,
             "newspaper": self.newspaper,
+            "interventions": [intervention.to_dict() for intervention in self.interventions],
         }
 
     @classmethod
     def from_dict(cls, payload: dict[str, Any]) -> "WorldState":
-        return cls(
+        state = cls(
             seed=int(payload["seed"]),
             tick=int(payload["tick"]),
             day=int(payload["day"]),
@@ -316,7 +391,15 @@ class WorldState:
             metrics={key: float(value) for key, value in payload["metrics"].items()},
             history=[{key: float(value) for key, value in row.items()} for row in payload["history"]],
             newspaper=list(payload.get("newspaper", [])),
+            interventions=[
+                ActiveIntervention.from_dict(item)
+                for item in payload.get("interventions", [])
+                if int(item.get("expires_tick", 0)) >= int(payload["tick"])
+            ],
         )
+        for company in state.companies:
+            company.sanitize(len(state.districts))
+        return state
 
     def public_snapshot(self, citizen_limit: int = 80) -> dict[str, Any]:
         return {
@@ -334,5 +417,5 @@ class WorldState:
             "events": [event.to_dict() for event in self.events[-80:]],
             "history": self.history[-240:],
             "newspaper": self.newspaper,
+            "interventions": [intervention.to_dict() for intervention in self.interventions],
         }
-
