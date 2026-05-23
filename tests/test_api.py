@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+import asyncio
+
 import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.simulation.engine import SimulationEngine
+from app.simulation.procedural import create_world
 
 
 def test_dashboard_and_core_api_endpoints() -> None:
@@ -94,3 +98,22 @@ def test_intervention_and_policy_api_update_city_state() -> None:
 
         invalid = client.post("/intervention", json={"kind": "moonfall", "severity": 0.5})
         assert invalid.status_code == 400
+
+
+def test_engine_records_system_error_and_pauses(monkeypatch: pytest.MonkeyPatch) -> None:
+    import app.simulation.engine as engine_module
+
+    def failing_system(_state) -> None:
+        raise RuntimeError("synthetic subsystem failure")
+
+    monkeypatch.setattr(engine_module, "run_systems", failing_system)
+    engine = SimulationEngine(create_world(seed=19, population=200))
+    engine.set_speed(20)
+
+    snapshot = asyncio.run(engine.step_async())
+
+    assert snapshot["running"] is False
+    assert snapshot["speed"] == 0
+    assert snapshot["engine_error"] == "RuntimeError: synthetic subsystem failure"
+    assert snapshot["events"][-1]["category"] == "system"
+    assert "synthetic subsystem failure" in snapshot["events"][-1]["description"]

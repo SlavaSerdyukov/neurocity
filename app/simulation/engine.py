@@ -9,7 +9,7 @@ from app.simulation.interventions import apply_intervention, set_government_para
 from app.simulation.procedural import create_world
 from app.simulation.scheduler import run_systems
 from app.simulation.tick_manager import SimulationSpeed, speed_delay
-from app.simulation.world_state import WorldState
+from app.simulation.world_state import CityEvent, WorldState
 
 
 Subscriber = Callable[[dict], Awaitable[None]]
@@ -23,6 +23,7 @@ class SimulationEngine:
         self._task: asyncio.Task | None = None
         self._lock = asyncio.Lock()
         self._subscribers: set[Subscriber] = set()
+        self.last_error: str | None = None
 
     @property
     def running(self) -> bool:
@@ -52,6 +53,7 @@ class SimulationEngine:
         async with self._lock:
             self.state = create_world(seed=seed, population=population)
             self.speed = SimulationSpeed.PAUSED
+            self.last_error = None
             snapshot = self.snapshot()
         await self._broadcast(snapshot)
         return snapshot
@@ -59,6 +61,7 @@ class SimulationEngine:
     def load_state(self, state: WorldState) -> dict:
         self.state = state
         self.speed = SimulationSpeed.PAUSED
+        self.last_error = None
         return self.snapshot()
 
     async def apply_intervention_async(
@@ -81,6 +84,7 @@ class SimulationEngine:
         return snapshot
 
     def step(self, steps: int = 1) -> dict:
+        self.last_error = None
         for _ in range(max(1, steps)):
             self.state.tick += 1
             self.state.day = self.state.tick
@@ -94,11 +98,15 @@ class SimulationEngine:
         payload = self.state.public_snapshot()
         payload["running"] = self.running
         payload["speed"] = int(self.speed)
+        payload["engine_error"] = self.last_error
         return payload
 
     async def step_async(self, steps: int = 1) -> dict:
         async with self._lock:
-            snapshot = self.step(steps)
+            try:
+                snapshot = self.step(steps)
+            except Exception as exc:
+                snapshot = self._record_engine_error(exc)
         await self._broadcast(snapshot)
         return snapshot
 
@@ -109,7 +117,12 @@ class SimulationEngine:
                 if not self._subscribers:
                     continue
             else:
-                await self.step_async()
+                try:
+                    await self.step_async()
+                except Exception as exc:
+                    async with self._lock:
+                        snapshot = self._record_engine_error(exc)
+                    await self._broadcast(snapshot)
                 await asyncio.sleep(speed_delay(int(self.speed)))
 
     async def _broadcast(self, snapshot: dict) -> None:
@@ -143,3 +156,19 @@ class SimulationEngine:
             }
         )
         self.state.history = self.state.history[-2000:]
+
+    def _record_engine_error(self, exc: Exception) -> dict:
+        self.speed = SimulationSpeed.PAUSED
+        self.last_error = f"{type(exc).__name__}: {exc}"
+        self.state.events.append(
+            CityEvent(
+                tick=self.state.tick,
+                day=self.state.day,
+                category="system",
+                severity=1.0,
+                title="Simulation paused after system error",
+                description=self.last_error,
+            )
+        )
+        self.state.events = self.state.events[-500:]
+        return self.snapshot()

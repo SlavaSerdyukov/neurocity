@@ -24,9 +24,46 @@ function byId(id) {
   return document.getElementById(id);
 }
 
-function command(message) {
+function commandLabel(message) {
+  const labels = {
+    start: "Simulation started",
+    pause: "Simulation paused",
+    reset: "City reset",
+    tick: "Advanced one tick",
+    speed: `Speed set to ${message.speed}x`,
+    intervention: "Intervention queued",
+    policy: "Policy updated",
+  };
+  return labels[message.action] || "Command sent";
+}
+
+function setCommandStatus(text, tone = "neutral") {
+  const topStatus = byId("command-state");
+  const feedback = byId("observer-feedback");
+  [topStatus, feedback].forEach((element) => {
+    if (!element) return;
+    element.textContent = text;
+    element.classList.toggle("good", tone === "good");
+    element.classList.toggle("error", tone === "error");
+  });
+  if (topStatus) topStatus.title = text;
+}
+
+async function readJson(response) {
+  const text = await response.text();
+  if (!text) return null;
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { detail: text.slice(0, 160) };
+  }
+}
+
+async function command(message) {
+  const label = commandLabel(message);
   if (state.socket && state.socket.readyState === WebSocket.OPEN) {
     state.socket.send(JSON.stringify(message));
+    setCommandStatus(label, "good");
     return;
   }
   const jsonHeaders = { "Content-Type": "application/json" };
@@ -53,12 +90,22 @@ function command(message) {
         body: JSON.stringify({ parameter: message.parameter, value: message.value }),
       }),
   };
-  if (!fallback[message.action]) return;
-  fallback[message.action]()
-    .then((response) => (response.ok ? response.json() : null))
-    .then((snapshot) => {
-      if (snapshot) scheduleDashboardUpdate(snapshot);
-    });
+  if (!fallback[message.action]) {
+    setCommandStatus("Unknown command", "error");
+    return;
+  }
+  try {
+    const response = await fallback[message.action]();
+    const payload = await readJson(response);
+    if (!response.ok) {
+      const detail = payload?.detail || response.statusText || "Command failed";
+      throw new Error(detail);
+    }
+    if (payload) scheduleDashboardUpdate(payload);
+    setCommandStatus(label, "good");
+  } catch (error) {
+    setCommandStatus(error.message || "Command failed", "error");
+  }
 }
 
 function scheduleDashboardUpdate(snapshot) {
@@ -79,20 +126,34 @@ function wireControls() {
     button.addEventListener("click", async () => {
       const action = button.dataset.action;
       if (action === "save") {
-        await fetch("/save", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: "autosave" }),
-        });
+        try {
+          const response = await fetch("/save", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name: "autosave" }),
+          });
+          if (!response.ok) throw new Error(response.statusText || "Save failed");
+          setCommandStatus("Saved autosave", "good");
+        } catch (error) {
+          setCommandStatus(error.message || "Save failed", "error");
+        }
         return;
       }
       if (action === "load") {
-        const response = await fetch("/load", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: "autosave" }),
-        });
-        if (response.ok) scheduleDashboardUpdate(await response.json());
+        try {
+          const response = await fetch("/load", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name: "autosave" }),
+          });
+          const payload = await readJson(response);
+          if (!response.ok) throw new Error(payload?.detail || response.statusText || "Load failed");
+          if (payload) scheduleDashboardUpdate(payload);
+          const loaded = payload?.load_status?.loaded !== false;
+          setCommandStatus(loaded ? "Loaded autosave" : "No autosave found", loaded ? "good" : "neutral");
+        } catch (error) {
+          setCommandStatus(error.message || "Load failed", "error");
+        }
         return;
       }
       if (action === "reset") {
@@ -139,11 +200,13 @@ function connectSocket() {
   socket.onopen = () => {
     byId("connection-state").textContent = "online";
     byId("connection-state").classList.add("online");
+    setCommandStatus("ready");
   };
   socket.onmessage = (event) => scheduleDashboardUpdate(JSON.parse(event.data));
   socket.onclose = () => {
     byId("connection-state").textContent = "offline";
     byId("connection-state").classList.remove("online");
+    setCommandStatus("reconnecting");
     setTimeout(connectSocket, 1200);
   };
 }
@@ -167,6 +230,9 @@ function updateDashboard(snapshot) {
   byId("kpi-housing").textContent = fmt.pct(metrics.housing_pressure);
   byId("kpi-transport").textContent = `${Math.round(metrics.commute_time || 0)} min`;
   byId("kpi-pollution").textContent = fmt.pct(metrics.pollution);
+  if (snapshot.engine_error) {
+    setCommandStatus(`Paused: ${snapshot.engine_error}`, "error");
+  }
 
   renderMap(snapshot);
   renderInspector(snapshot);
@@ -301,6 +367,7 @@ function renderInspector(snapshot) {
   state.selectedDistrictId = district.id;
   byId("district-name").textContent = district.name;
   byId("district-type").textContent = district.archetype;
+  byId("observer-target").textContent = district.name;
   byId("district-wealth").textContent = fmt.pct(district.wealth);
   byId("district-density").textContent = fmt.pct(district.density);
   byId("district-crime").textContent = fmt.pct(district.crime);
@@ -317,6 +384,13 @@ function renderInterventions(snapshot) {
   const list = byId("active-interventions");
   list.innerHTML = "";
   const interventions = snapshot.interventions || [];
+  if (!interventions.length) {
+    const empty = document.createElement("span");
+    empty.className = "intervention-empty";
+    empty.textContent = "No active interventions";
+    list.appendChild(empty);
+    return;
+  }
   interventions.slice(-6).forEach((intervention) => {
     const chip = document.createElement("span");
     chip.className = "intervention-chip";
@@ -376,12 +450,17 @@ function renderEvents(events) {
 
 function renderNewspaper(headlines) {
   const list = byId("newspaper-list");
+  const wasReadingOlderHeadlines = list.scrollTop > 8;
+  const previousScrollTop = list.scrollTop;
   list.innerHTML = "";
   headlines.slice(1).forEach((headline) => {
     const item = document.createElement("li");
     item.textContent = headline;
     list.appendChild(item);
   });
+  if (wasReadingOlderHeadlines) {
+    list.scrollTop = previousScrollTop;
+  }
 }
 
 function chartOptions() {
