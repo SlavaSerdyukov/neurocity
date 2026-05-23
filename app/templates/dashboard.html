@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{{ app_name }} Dashboard</title>
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', path='favicon.svg') }}" />
+    <link rel="stylesheet" href="{{ url_for('static', path='css/dashboard.css') }}" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="brand-block">
+          <h1>NEUROCITY</h1>
+          <span id="connection-state" class="status-chip">connecting</span>
+        </div>
+        <div class="time-strip">
+          <span>Day <strong id="day-value">0</strong></span>
+          <span>Tick <strong id="tick-value">0</strong></span>
+          <span>Speed <strong id="speed-value">0x</strong></span>
+        </div>
+        <div class="control-strip" aria-label="Simulation controls">
+          <button data-action="start" title="Start simulation">Start</button>
+          <button data-action="pause" title="Pause simulation">Pause</button>
+          <button data-speed="1" title="Run at normal speed">1x</button>
+          <button data-speed="5" title="Run at five times speed">5x</button>
+          <button data-speed="20" title="Run at twenty times speed">20x</button>
+          <button data-speed="100" title="Run at one hundred times speed">100x</button>
+          <button data-action="tick" title="Advance one tick">Step</button>
+          <button data-action="save" title="Save current city state">Save</button>
+          <button data-action="load" title="Load latest saved city">Load</button>
+          <button data-action="reset" title="Reset city">Reset</button>
+        </div>
+      </header>
+
+      <aside class="kpi-rail" aria-label="City KPIs">
+        <section>
+          <h2>Economy</h2>
+          <dl>
+            <div><dt>GDP</dt><dd id="kpi-gdp">0</dd></div>
+            <div><dt>Unemployment</dt><dd id="kpi-unemployment">0%</dd></div>
+            <div><dt>Inflation</dt><dd id="kpi-inflation">0%</dd></div>
+            <div><dt>Productivity</dt><dd id="kpi-productivity">0.00</dd></div>
+          </dl>
+        </section>
+        <section>
+          <h2>Society</h2>
+          <dl>
+            <div><dt>Happiness</dt><dd id="kpi-happiness">0%</dd></div>
+            <div><dt>Stress</dt><dd id="kpi-stress">0%</dd></div>
+            <div><dt>Polarization</dt><dd id="kpi-polarization">0%</dd></div>
+            <div><dt>Crime</dt><dd id="kpi-crime">0%</dd></div>
+          </dl>
+        </section>
+        <section>
+          <h2>Infrastructure</h2>
+          <dl>
+            <div><dt>Energy</dt><dd id="kpi-energy">0%</dd></div>
+            <div><dt>Housing</dt><dd id="kpi-housing">0%</dd></div>
+            <div><dt>Transport</dt><dd id="kpi-transport">0 min</dd></div>
+            <div><dt>Pollution</dt><dd id="kpi-pollution">0%</dd></div>
+          </dl>
+        </section>
+      </aside>
+
+      <main class="map-zone">
+        <div class="panel-title">
+          <div>
+            <h2>Live City Map</h2>
+            <p id="map-subtitle">district pressure, transport flow, pollution, crime heatmap</p>
+          </div>
+          <div class="legend">
+            <span><i class="legend-dot crime"></i>Crime</span>
+            <span><i class="legend-dot congestion"></i>Congestion</span>
+            <span><i class="legend-dot transit"></i>Transit</span>
+          </div>
+        </div>
+        <div id="map-frame" class="map-frame">
+          <div id="pixi-layer" class="pixi-layer" aria-hidden="true"></div>
+          <svg id="city-map" viewBox="0 0 100 100" role="img" aria-label="Procedural city district map"></svg>
+        </div>
+      </main>
+
+      <aside class="inspector">
+        <section class="district-inspector">
+          <div class="panel-title">
+            <h2 id="district-name">District</h2>
+            <span id="district-type">select a district</span>
+          </div>
+          <dl class="district-grid">
+            <div><dt>Wealth</dt><dd id="district-wealth">0%</dd></div>
+            <div><dt>Density</dt><dd id="district-density">0%</dd></div>
+            <div><dt>Crime</dt><dd id="district-crime">0%</dd></div>
+            <div><dt>Transit</dt><dd id="district-transit">0%</dd></div>
+            <div><dt>Rent</dt><dd id="district-rent">0</dd></div>
+            <div><dt>Jobs</dt><dd id="district-jobs">0%</dd></div>
+          </dl>
+        </section>
+
+        <section class="newspaper">
+          <h2>Metrogrid Times</h2>
+          <ol id="newspaper-list"></ol>
+        </section>
+
+        <section class="event-feed">
+          <h2>Event Feed</h2>
+          <div id="event-list" class="event-list"></div>
+        </section>
+      </aside>
+
+      <section class="chart-band" aria-label="Observability panels">
+        <article>
+          <div class="panel-title"><h2>Economy</h2><span>GDP, jobs, prices</span></div>
+          <canvas id="economy-chart"></canvas>
+        </article>
+        <article>
+          <div class="panel-title"><h2>Society</h2><span>mood, stress, polarization</span></div>
+          <canvas id="society-chart"></canvas>
+        </article>
+        <article>
+          <div class="panel-title"><h2>Infrastructure</h2><span>energy, transport, housing</span></div>
+          <canvas id="infrastructure-chart"></canvas>
+        </article>
+      </section>
+    </div>
+
+    <script src="{{ url_for('static', path='vendor/d3.v7.min.js') }}"></script>
+    <script src="{{ url_for('static', path='vendor/chart.umd.js') }}"></script>
+    <script src="{{ url_for('static', path='vendor/pixi.min.js') }}"></script>
+    <script src="{{ url_for('static', path='js/dashboard.js') }}"></script>
+  </body>
+</html>
