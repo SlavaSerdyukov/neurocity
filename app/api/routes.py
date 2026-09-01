@@ -8,8 +8,9 @@ from pydantic import BaseModel, Field
 from sqlmodel import Session, select
 
 from app.database import SimulationSave, get_session, latest_save
-from app.simulation.interventions import available_interventions
 from app.simulation.engine import SimulationEngine
+from app.simulation.interventions import available_interventions
+from app.simulation.limits import MAX_MANUAL_TICK_STEPS, MAX_PUBLIC_POPULATION, MIN_PUBLIC_POPULATION
 from app.simulation.world_state import WorldState
 
 
@@ -22,7 +23,7 @@ class SpeedRequest(BaseModel):
 
 class ResetRequest(BaseModel):
     seed: int | None = None
-    population: int | None = None
+    population: int | None = Field(default=None, ge=MIN_PUBLIC_POPULATION, le=MAX_PUBLIC_POPULATION)
 
 
 class SaveRequest(BaseModel):
@@ -113,7 +114,7 @@ async def speed(engine: Annotated[SimulationEngine, Depends(get_engine)], payloa
 
 @router.post("/simulation/tick")
 async def tick(engine: Annotated[SimulationEngine, Depends(get_engine)], steps: int = 1) -> dict:
-    return await engine.step_async(min(max(steps, 1), 250))
+    return await engine.step_async(min(max(steps, 1), MAX_MANUAL_TICK_STEPS))
 
 
 @router.post("/intervention")
