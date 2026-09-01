@@ -21,3 +21,24 @@ jobs:
         run: cp .env.example .env
       - name: Run tests
         run: pytest
+
+  docker-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker build -t neurocity-demo .
+      - name: Start container
+        run: docker run -d --name neurocity-demo -p 8000:8000 neurocity-demo
+      - name: Wait for app
+        run: |
+          for i in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:8000/health; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs neurocity-demo
+          exit 1
+      - name: Check dashboard
+        run: curl --fail --silent http://127.0.0.1:8000/dashboard > /dev/null
