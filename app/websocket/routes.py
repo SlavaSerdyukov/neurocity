@@ -66,4 +66,6 @@ async def simulation_socket(websocket: WebSocket) -> None:
                     min(max(float(message.get("value", 0.0)), 0.0), 1.0),
                 )
     except WebSocketDisconnect:
+        pass
+    finally:
         engine.unsubscribe(sender)
