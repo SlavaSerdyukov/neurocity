@@ -40,5 +40,15 @@ jobs:
           done
           docker logs neurocity-demo
           exit 1
-      - name: Check dashboard
-        run: curl --fail --silent http://127.0.0.1:8000/dashboard > /dev/null
+      - name: Check dashboard and static assets
+        run: |
+          curl --fail --silent http://127.0.0.1:8000/dashboard > /dev/null
+          curl --fail --silent http://127.0.0.1:8000/static/css/dashboard.css > /dev/null
+          curl --fail --silent http://127.0.0.1:8000/static/js/dashboard.js > /dev/null
+      - name: Check HTTPS proxy URL generation
+        run: |
+          curl --fail --silent \
+            -H 'Host: demo.example.com' \
+            -H 'X-Forwarded-Proto: https' \
+            http://127.0.0.1:8000/dashboard \
+            | grep -q 'https://demo.example.com/static/css/dashboard.css'
