@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches: [main, deploy/railway-demo]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install package and tests
+        run: pip install ".[dev]"
+      - name: Prepare test environment
+        run: cp .env.example .env
+      - name: Run tests
+        run: pytest
+
+  docker-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker build -t neurocity-demo .
+      - name: Start container
+        run: docker run -d --name neurocity-demo -p 8000:8000 neurocity-demo
+      - name: Wait for app
+        run: |
+          for i in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:8000/health; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs neurocity-demo
+          exit 1
+      - name: Check dashboard and static assets
+        run: |
+          curl --fail --silent http://127.0.0.1:8000/dashboard > /dev/null
+          curl --fail --silent http://127.0.0.1:8000/static/css/dashboard.css > /dev/null
+          curl --fail --silent http://127.0.0.1:8000/static/js/dashboard.js > /dev/null
+      - name: Check HTTPS proxy URL generation
+        run: |
+          curl --fail --silent \
+            -H 'Host: demo.example.com' \
+            -H 'X-Forwarded-Proto: https' \
+            http://127.0.0.1:8000/dashboard \
+            | grep -q 'https://demo.example.com/static/css/dashboard.css'

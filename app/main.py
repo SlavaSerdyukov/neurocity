@@ -39,6 +39,11 @@ def root() -> RedirectResponse:
     return RedirectResponse(url="/dashboard")
 
 
+@app.get("/health")
+def health() -> dict[str, str]:
+    return {"status": "ok"}
+
+
 @app.get("/dashboard")
 def dashboard(request: Request):
     return templates.TemplateResponse(request, "dashboard.html", {"app_name": settings.app_name})

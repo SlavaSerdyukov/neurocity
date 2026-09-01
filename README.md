@@ -2,6 +2,13 @@
 
 NEUROCITY is a local-first simulation platform for observing a near-future autonomous city populated by AI-driven citizens. It is built as a deterministic systems simulator with a FastAPI backend, SQLite persistence, WebSocket tick streaming, and a dense live dashboard.
 
+## Live Demo
+
+- Dashboard: https://neurocity-production.up.railway.app
+- Health check: https://neurocity-production.up.railway.app/health
+
+The public demo runs on Railway. SQLite save data is stored on a persistent Railway Volume, so saved simulations survive service restarts and redeployments.
+
 ## What It Simulates
 
 - 5,000+ vectorized citizens with jobs, home districts, wealth, stress, ideology, health, memories, and meme exposure

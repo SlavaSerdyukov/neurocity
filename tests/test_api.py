@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 from app.simulation.engine import SimulationEngine
+from app.simulation.limits import MAX_PUBLIC_POPULATION, MIN_PUBLIC_POPULATION
 from app.simulation.procedural import create_world
 
 
@@ -37,6 +38,20 @@ def test_dashboard_and_core_api_endpoints() -> None:
         assert client.get("/economy").status_code == 200
         assert client.get("/events").status_code == 200
         assert client.get("/interventions").status_code == 200
+
+
+def test_public_reset_population_is_bounded_for_http_and_websocket() -> None:
+    with TestClient(app) as client:
+        too_small = client.post("/simulation/reset", json={"population": MIN_PUBLIC_POPULATION - 1})
+        too_large = client.post("/simulation/reset", json={"population": MAX_PUBLIC_POPULATION + 1})
+        assert too_small.status_code == 422
+        assert too_large.status_code == 422
+
+        with client.websocket_connect("/ws/simulation") as websocket:
+            websocket.receive_json()
+            websocket.send_json({"action": "reset", "population": 1})
+            websocket.receive_json()
+            assert app.state.engine.state.citizens.size == MIN_PUBLIC_POPULATION
 
 
 def test_save_load_and_websocket_initial_snapshot() -> None:
